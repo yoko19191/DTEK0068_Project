@@ -34,19 +34,25 @@
 #define LCD_DIR PORTC_DIR         /* Define LCD data port direction */
 #define LCD_PORT PORTC_OUT        /* Define LCD data port */
 #define EN 0                      /* EN pin to PORTC_PIN0 */  
-#define RS 1                      /* RS pin to PORTC_PIN1 */ 
-/*Threshold number */
-/*magic nuber(nope), this adcValue was came from our testing */
-/*under certain ambient light and motor*/
-#define THRESHOLD 280             
+#define RS 1                      /* RS pin to PORTC_PIN1 */           
 
 /*---global variable---*/
 /*adcValue is shared between main and ISR*/
 volatile uint16_t adcValue; 
-/*breakNum exists in main only */
-uint16_t breakNum;
-/*counter is shareed between main and ISR*/
-volatile int counter;
+/*breakNum is shared between main and ISR */
+volatile uint16_t breakNum;
+/*count is shared between main and ISR*/
+volatile uint16_t count;
+/*Threshold can be modified(global)*/
+/*  and exist in RTC ISR only(non volatile)*/
+/*  initial value came from testing*/
+uint16_t threshold = 295;
+/*flag for optimize threshold*/
+bool isOptimizing = false;
+/*two variables for optimizing threshold*/
+/*this two are shared between ISR and main*/
+//uint16_t max;
+//uint16_t min=0;
 
 /*---prototype---*/
 void lcd_command(unsigned char cmnd);
@@ -76,15 +82,66 @@ ISR(RTC_PIT_vect)
     /*Reset RTC FLAG*/
     RTC.PITINTFLAGS = RTC_PI_bm;
     
-    /*counting for 1 sec*/
-    counter++;
+    /*counting every 0.5ms*/
+           
     
-    if(adc_is_conersion_done())
+    if( adc_is_conersion_done() )
     {
         adcValue = adc_read();
+        
+        /*If program normal running*/
+        if( (!isOptimizing) )
+        {
+           count++;
+            
+        }
+        /*If program enter optimized mode*/
+        else
+        {
+            //lcd_print_xy(0,0,"test");
+            count++;
+            
+        }
+        
+        
     }
-}
+    
+ 
+    
+}//ISR(RTC_PIT_vect)  
+
+
+ISR(PORTF_PORT_vect)
+{
+    /*Clearing an interrupt flag*/
+    PORTF.INTFLAGS = PORTF.INTFLAGS;
+    
+    /*If RTC(this program)is running */
+    if(RTC.PITCTRLA & RTC_PI_bm)
+    {
+        /*Stop RTC and display instruction*/
+        RTC.PITCTRLA &= ~(RTC_PITEN_bm);
+        lcd_clear();
+        lcd_print_xy(0,0,"OneClickOptimize");
+        lcd_print_xy(1,0,"Press to start");
+    }
+    /*If RTC has stop(press sec time)*/
+    else
+    {   
+        /*Set flag and enter optimized mode*/
+        isOptimizing = true;   
+        /*Reset count which used for counting examples*/
+        count = 0;
+        /*Enable RTC*/
+        RTC.PITCTRLA |= RTC_PITEN_bm;
+        
+    }
+   
+    
+}//ISR(PORTF_PORT_vect)
 /*-----ISR-----*/
+
+
 int main(void) 
 {
     /* Initialization all stuff  here */
@@ -98,39 +155,90 @@ int main(void)
     RTC.PITCTRLA |= RTC_PERIOD_CYC16_gc; /*enable RTC clock cycle 16*/
     RTC.PITCTRLA &= ~(RTC_PITEN_bm); /*stop RTC*/
     
+    /*Setup button and reset its status*/
+    PORTF.DIRCLR = PIN6_bm;
+    PORTF.PIN6CTRL = PORT_ISC_FALLING_gc;
+    
+    
+    uint16_t max=0;
+    uint16_t min=1023;
     
     set_sleep_mode(SLPCTRL_SMODE_IDLE_gc); 
     
     sei();  /*enable global interrupt*/
     while (1) 
     {   
-        /*breakNum count how many time LDR are blocked by propellor in 1s*/
-        if(adcValue==THRESHOLD)
+        /*Go to sleep after Every ISR turn*/
+        sleep_mode();
+        
+        /*breakNum add one if adcValue reach exactly threshold*/
+        if(adcValue == threshold)
         {
             breakNum++;
         }
         
-        /*RTC period is 0.5ms, 2048 cycles is 1 second*/
-        if(counter==2048)
-        {   
-            /*reset counter to 0*/
-            counter = 0;
+        /*If RTC is running and 1 sec up*/
+        if((RTC.PITCTRLA & RTC_PI_bm) && (count==2048))
+        {
+            /*Reset count to zero*/
+            count = 0;
             
-            /*our propellor gives two break every rotation*/
+            /*this propellor gives two break every rotation*/
             /*thus how breakNum/2*60 came from*/
             uint16_t rpm = breakNum/2*60;
             /*Display result*/
             lcd_clear(); 
             lcd_print_xy(0,0,"RPM:");
             lcd_print_xy(0,4,int2str(rpm));
-            lcd_print_xy(1,0,"ADC_");
-            lcd_print_xy(1,4,int2str(adcValue));        
-            /*reset breakNum after every second print*/
-            breakNum=0;
+            /*Code for testing*/
+            lcd_print_xy(1,0,"ADC:");
+            lcd_print_xy(1,4,int2str(adcValue));  
+            lcd_print_xy(1,10,int2str(threshold) );
+            
+            /*Reset breakNum to zero*/
+            breakNum = 0;
         }
         
+        /*OneClickOptimized logic here*/
+        if( (isOptimizing))
+        {   
+            
+            /*Finding max and min in 512 samples(0.25s)*/
+            if(max<adcValue)
+            {
+                max = adcValue;
+            }
+            /*CRITICAL ISSUES HERE*/
+            if(min>adcValue)
+            {
+                min = adcValue;  // MIN ALWAYS ZERO
+            }
+            
+            /*If go though 512 samples*/
+            if(count==512){
+                /*Reset count to zero*/
+                count = 0;
+                /*new optimized threshold*/
+                /*round down*/
+                threshold = (min+max)/2;
+                /*Reset max and min */
+                max = 0; 
+                min = 1023;
+                /*Optimize done,reset flag*/
+                isOptimizing = false; 
+            }
+            
+        }
+        
+        
     }
+    
 }//main()
+
+
+/*---threshold adjust functions---*/
+
+
 
 
 
@@ -322,8 +430,9 @@ void rtc_init(void)
     ADC0.COMMAND = ADC_STCONV_bm;
 }//adc_start;
  
+
 bool adc_is_conersion_done(void)
 {
     return (ADC0.INTFLAGS & ADC_RESRDY_bm);
-}//adc_is_conersion_done
+}//adc_is_conersion_done;
 /*-----ADC-----*/
