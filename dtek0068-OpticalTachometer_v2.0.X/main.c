@@ -48,11 +48,9 @@ volatile uint16_t count;
 /*  initial value came from testing*/
 uint16_t threshold = 295;
 /*flag for optimize threshold*/
-bool isOptimizing = false;
-/*two variables for optimizing threshold*/
-/*this two are shared between ISR and main*/
-//uint16_t max;
-//uint16_t min=0;
+/*  is shared betwenn ISR and main*/
+volatile bool isOptimizing = false;
+
 
 /*---prototype---*/
 void lcd_command(unsigned char cmnd);
@@ -70,44 +68,18 @@ bool adc_is_conersion_done(void);
 
 /*-----ISR-----*/
 
-//ISR(ADC0_RESRDY_vect)
-//{
-//    /*Read value from ADC Every 0.5 ms(almost real time)*/    
-//    adcValue = adc_read();
-//}
-
-
 ISR(RTC_PIT_vect)  
 {  
     /*Reset RTC FLAG*/
     RTC.PITINTFLAGS = RTC_PI_bm;
     
     /*counting every 0.5ms*/
-           
-    
     if( adc_is_conersion_done() )
     {
         adcValue = adc_read();
-        
-        /*If program normal running*/
-        if( (!isOptimizing) )
-        {
-           count++;
-            
-        }
-        /*If program enter optimized mode*/
-        else
-        {
-            //lcd_print_xy(0,0,"test");
-            count++;
-            
-        }
-        
-        
+        count++;
     }
-    
- 
-    
+  
 }//ISR(RTC_PIT_vect)  
 
 
@@ -119,11 +91,8 @@ ISR(PORTF_PORT_vect)
     /*If RTC(this program)is running */
     if(RTC.PITCTRLA & RTC_PI_bm)
     {
-        /*Stop RTC and display instruction*/
+        /*Stop RTC*/
         RTC.PITCTRLA &= ~(RTC_PITEN_bm);
-        lcd_clear();
-        lcd_print_xy(0,0,"OneClickOptimize");
-        lcd_print_xy(1,0,"Press to start");
     }
     /*If RTC has stop(press sec time)*/
     else
@@ -139,6 +108,7 @@ ISR(PORTF_PORT_vect)
    
     
 }//ISR(PORTF_PORT_vect)
+
 /*-----ISR-----*/
 
 
@@ -148,6 +118,10 @@ int main(void)
     lcd_init();
     rtc_init();
     adc_init();
+    
+    /*two variables for optimizing threshold*/
+    uint16_t max=0;
+    uint16_t min=1023;
     
     /*setting.....*/
     adc_start();
@@ -159,10 +133,7 @@ int main(void)
     PORTF.DIRCLR = PIN6_bm;
     PORTF.PIN6CTRL = PORT_ISC_FALLING_gc;
     
-    
-    uint16_t max=0;
-    uint16_t min=1023;
-    
+
     set_sleep_mode(SLPCTRL_SMODE_IDLE_gc); 
     
     sei();  /*enable global interrupt*/
@@ -197,6 +168,14 @@ int main(void)
             
             /*Reset breakNum to zero*/
             breakNum = 0;
+        }//normal mode
+        
+        /*Display instruction when RTC is disabled*/
+        if( !(RTC.PITCTRLA & RTC_PI_bm) )
+        {
+            lcd_clear();
+            lcd_print_xy(0,0,"OneClickOptimize");
+            lcd_print_xy(1,0,"Press to start");
         }
         
         /*OneClickOptimized logic here*/
@@ -208,10 +187,10 @@ int main(void)
             {
                 max = adcValue;
             }
-            /*CRITICAL ISSUES HERE*/
+            
             if(min>adcValue)
             {
-                min = adcValue;  // MIN ALWAYS ZERO
+                min = adcValue;  
             }
             
             /*If go though 512 samples*/
@@ -228,10 +207,10 @@ int main(void)
                 isOptimizing = false; 
             }
             
-        }
+        }//optimize mode
         
         
-    }
+    }//while(1)
     
 }//main()
 
