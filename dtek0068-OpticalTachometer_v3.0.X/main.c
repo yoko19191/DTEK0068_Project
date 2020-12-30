@@ -2,8 +2,9 @@
  * File:   main.c
  * Author: Guanghang Chen
  *
- * Created on 27 December 2020, 22:30
+ * Created on 30 December 2020, 13:25
  */
+
 
 /**  PIN Assignment for LCD1602
  * D4 - PC4
@@ -43,14 +44,11 @@ volatile uint16_t adcValue;
 volatile uint16_t breakNum;
 /*count is shared between main and ISR*/
 volatile uint16_t count;
-/*Threshold can be modified(global)*/
-/*  and exist in main only(non volatile)*/
-/*  initial value came from testing*/
-uint16_t threshold = 295;
+
 /*flag for optimize threshold*/
 /*  is shared betwenn ISR and main*/
 /*  and its will changed unexpectedly*/
-volatile bool isOptimizing = false;
+//volatile bool isOptimizing = false;
 
 
 /*---prototype---*/
@@ -99,7 +97,6 @@ ISR(PORTF_PORT_vect)
     else
     {   
         /*Set flag and enter optimized mode*/
-        isOptimizing = true;   
         /*Reset count which used for counting examples*/
         count = 0;
         /*Enable RTC*/
@@ -123,6 +120,10 @@ int main(void)
     /*two variables for optimizing threshold*/
     uint16_t max=0;
     uint16_t min=1023;
+    /*Threshold can be modified*/
+    /*and exist in main only*/
+    /*initial value came from testing*/
+    uint16_t threshold = 295;
     
     /*setting.....*/
     adc_start();
@@ -149,6 +150,18 @@ int main(void)
             breakNum++;
         }
         
+        /*Finding max and min in 2048 samples(1s)*/
+        if(max<adcValue)
+        {
+            max = adcValue;
+        }
+            
+        if(min>adcValue)
+        {
+            min = adcValue;  
+        }
+      
+        
         /*If RTC is running and 1 sec up*/
         if((RTC.PITCTRLA & RTC_PI_bm) && (count==2048))
         {
@@ -158,6 +171,7 @@ int main(void)
             /*this propellor gives two break every rotation*/
             /*thus how breakNum/2*60 came from*/
             uint16_t rpm = breakNum/2*60;
+            
             /*Display result*/
             lcd_clear(); 
             lcd_print_xy(0,0,"RPM:");
@@ -167,48 +181,27 @@ int main(void)
             lcd_print_xy(1,4,int2str(adcValue));  
             lcd_print_xy(1,10,int2str(threshold) );
             
+            
+            /*If propellor is not rotating*/
+            if( (max-min)<10)
+            {
+                rpm = 0;
+            }
+            else
+            {   
+                /*optimized threshold every second*/
+                threshold = (min+max)/2;  
+            }
+            
+            
+            /*Reset max and min */
+            max = 0; 
+            min = 1023;
+            
             /*Reset breakNum to zero*/
             breakNum = 0;
-        }//normal mode
-        
-        /*Display instruction when RTC is disabled*/
-        if( !(RTC.PITCTRLA & RTC_PI_bm) )
-        {
-            lcd_clear();
-            lcd_print_xy(0,0,"OneClickOptimize");
-            lcd_print_xy(1,0,"Press to start");
-        }
-        
-        /*OneClickOptimized logic here*/
-        if( (isOptimizing))
-        {   
-            
-            /*Finding max and min in 512 samples(0.25s)*/
-            if(max<adcValue)
-            {
-                max = adcValue;
-            }
-            
-            if(min>adcValue)
-            {
-                min = adcValue;  
-            }
-            
-            /*If go though 512 samples*/
-            if(count==512){
-                /*Reset count to zero*/
-                count = 0;
-                /*new optimized threshold*/
-                /*round down*/
-                threshold = (min+max)/2;
-                /*Reset max and min */
-                max = 0; 
-                min = 1023;
-                /*Optimize done,reset flag*/
-                isOptimizing = false; 
-            }
-            
-        }//optimize mode
+        }//automatically adjust threshold
+     
         
         
     }//while(1)
