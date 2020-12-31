@@ -53,3 +53,6 @@
 (2020-12-27)
 
 - new feature: add OneClickOptimize mode, able optimize threshold. 
+
+### Credits
+Guanghang Chen(guchen@utu.fi), Jiachen Yao(jiayao@utu.fi), Aowen shi(aowshi@utu.fi), Honghao Du(hongdu@utu.fi), Bowen Hu(bowehu@utu.fi) have done contribution to building up this project.
