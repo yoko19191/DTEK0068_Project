@@ -1,8 +1,9 @@
 /*
  * File:   main.c
- * Author: Guanghang Chen
- *
+ * Author: Guanghang Chen(guchen@utu.fi)
  * Created on 31 December 2020, 17:52
+ * Description: 
+ * Measured the RPM of small DC motor with visible light and LDR
  */
 
 
