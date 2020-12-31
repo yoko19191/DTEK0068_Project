@@ -2,7 +2,7 @@
  * File:   main.c
  * Author: Guanghang Chen
  *
- * Created on 30 December 2020, 13:25
+ * Created on 31 December 2020, 17:52
  */
 
 
@@ -19,6 +19,11 @@
  * PE0 - LDR
  * GND - LDR
  */
+
+/**  PIN Assignment for TCB3
+ * PB5 - L9110's forward PWM
+ */
+
 
 #define F_CPU 3333333
 
@@ -44,7 +49,9 @@ volatile uint16_t adcValue;
 volatile uint16_t breakNum;
 /*count is shared between main and ISR*/
 volatile uint16_t count;
-
+/*flag is used for setting duty of DC motor*/
+/*which shared by main and ISR*/
+volatile uint8_t flag = 0;
 
 /*---prototype---*/
 void lcd_command(unsigned char cmnd);
@@ -59,6 +66,8 @@ void adc_init(void);
 uint16_t adc_read(void);
 void adc_start(void);
 bool adc_is_conersion_done(void);
+void tcb3_init (void);
+void port_init(void);
 
 /*-----ISR-----*/
 
@@ -69,13 +78,24 @@ ISR(RTC_PIT_vect)
     
     /*counting every 0.5ms*/
     if( adc_is_conersion_done() )
-    {
+    {   
+        /*read value from on board ADC*/
         adcValue = adc_read();
         count++;
     }
   
 }//ISR(RTC_PIT_vect)  
 
+
+ISR(PORTF_PORT_vect)
+{
+    /*Clearing an interrupt flag*/
+    PORTF.INTFLAGS = PORTF.INTFLAGS;
+    
+    /*Flag increase every press button*/
+    flag++;
+    
+}//ISR(PORTF_PORT_vect)
 
 /*-----ISR-----*/
 
@@ -86,6 +106,8 @@ int main(void)
     lcd_init();
     rtc_init();
     adc_init();
+    port_init();
+    tcb3_init();
     
     /*two variables for optimizing threshold*/
     uint16_t max=0;
@@ -101,11 +123,8 @@ int main(void)
     RTC.PITCTRLA |= RTC_PERIOD_CYC16_gc; /*enable RTC clock cycle 16*/
     RTC.PITCTRLA &= ~(RTC_PITEN_bm); /*stop RTC*/
     
-    /*Setup button and reset its status*/
-    PORTF.DIRCLR = PIN6_bm;
-    PORTF.PIN6CTRL = PORT_ISC_FALLING_gc;
     
-
+    /*Setting Sleep mode to IDLE*/
     set_sleep_mode(SLPCTRL_SMODE_IDLE_gc); 
     
     sei();  /*enable global interrupt*/
@@ -113,6 +132,27 @@ int main(void)
     {   
         /*Go to sleep after Every ISR turn*/
         sleep_mode();
+        
+        
+        /*Setting duty for TCB3*/
+        /*Using for-else instead of switch-case due to efficient*/
+        if(flag==1)
+        {
+            TCB3.CCMPH = 0x00;
+            lcd_print_xy(0,10,int2str(flag));
+        }
+        else if(flag==2)
+        {
+            TCB3.CCMPH = 0xC0;
+            lcd_print_xy(0,10,int2str(flag));
+        }
+        else if(flag==3)
+        {
+            TCB3.CCMPH = 0xFF;
+            lcd_print_xy(0,10,int2str(flag));
+            //reset flag
+            flag = 0;
+        }
         
         /*breakNum add one if adcValue reach exactly threshold*/
         if(adcValue == threshold)
@@ -163,7 +203,6 @@ int main(void)
                 threshold = (min+max)/2;  
             }
             
-            
             /*Reset max and min */
             max = 0; 
             min = 1023;
@@ -174,6 +213,8 @@ int main(void)
      
         
         
+        
+        
     }//while(1)
     
 }//main()
@@ -181,8 +222,29 @@ int main(void)
 
 
 
+void port_init(void)
+{
+    /*Setup button and reset its status*/
+    PORTF.DIRCLR = PIN6_bm;
+    PORTF.PIN6CTRL = PORT_ISC_FALLING_gc;
+    /*Set PB5 as output for TCB3 and initialize it high*/
+    PORTB_DIRSET |= PIN5_bm;
+    
+}
 
+void tcb3_init (void)
+{
+    /* Load CCMP register with the period and duty cycle of the PWM */
+    TCB3.CCMP = 0x00FF;
 
+    /* Enable TCB3 and Divide CLK_PER by 2(6.5kHz)*/
+    TCB3.CTRLA |= TCB_ENABLE_bm;
+    TCB3.CTRLA |= TCB_CLKSEL_CLKDIV2_gc;
+    
+    /* Enable Pin Output and configure TCB in 8-bit PWM mode */
+    TCB3.CTRLB |= TCB_CCMPEN_bm;
+    TCB3.CTRLB |= TCB_CNTMODE_PWM8_gc;
+}
 
 
 /*-----LCD-----*/
