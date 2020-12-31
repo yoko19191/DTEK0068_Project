@@ -1,7 +1,13 @@
-/*
- * File:   main.c
- * Author: Guanghang Chen(guchen@utu.fi)
+/*  
  * Created on 31 December 2020, 17:52
+ * File:   main.c 
+ * - Optical Tachometer / DTEK0068(2020) Course Project
+ * Author: 
+ *  - Guanghang Chen(guchen@utu.fi)
+ *  - Jiachen Yao(jiayao@utu.fi)
+ *  - Aowen Shi(aowshi@utu.fi)
+ *  - Honghao Du(hongdu@utu.fi)
+ *  - Bowen Hu(bowehu@utu.fi)
  * Description: 
  * Measured the RPM of small DC motor with visible light and LDR
  */
