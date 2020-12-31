@@ -12,7 +12,7 @@
 
 - ADC_RESSEL_10BIT_gc
 - RTC_PERIOD_CYC16_gc
-- TCB_CNTMODE_PWM_gc
+- TCB_CNTMODE_PWM8_gc
 
 **PIN Assignment**(latest)
 
