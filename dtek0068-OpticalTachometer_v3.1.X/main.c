@@ -109,7 +109,7 @@ ISR(PORTF_PORT_vect)
 
 int main(void) 
 {
-    /* Initialization all stuff  here */
+    /* Initialization all stuff here */
     lcd_init();
     rtc_init();
     adc_init();
@@ -216,13 +216,12 @@ int main(void)
             
             /*Reset breakNum to zero*/
             breakNum = 0;
-        }//automatically adjust threshold
+            
+        }//if()
      
         
-        
-        
-        
     }//while(1)
+    
     
 }//main()
 
