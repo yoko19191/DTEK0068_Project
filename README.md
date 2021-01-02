@@ -6,7 +6,7 @@
 
 - Measured the RPM of small DC motor with visible light and LDR
 - Update RPM once a second on LCD1602
-- Adjustable motor RPM control with PWN + L9110
+- Adjustable motor RPM control with PWM + L9110
 
 **Module in used**
 
