@@ -144,21 +144,24 @@ int main(void)
         /*Setting duty for TCB3*/
         /*Using for-else instead of switch-case due to efficient*/
         if(flag==1)
-        {
+        {   
+            //Set duty to 0%
             TCB3.CCMPH = 0x00;
-            lcd_print_xy(0,10,int2str(flag));
         }
         else if(flag==2)
-        {
+        {   
+            //Set duty to 50%
             TCB3.CCMPH = 0xC0;
-            lcd_print_xy(0,10,int2str(flag));
         }
         else if(flag==3)
-        {
+        {   
+            //Set duty to 100%
             TCB3.CCMPH = 0xFF;
-            lcd_print_xy(0,10,int2str(flag));
+        }
+        else if(flag==4)
+        {
             //reset flag
-            flag = 0;
+            flag = 1;
         }
         
         /*breakNum add one if adcValue reach exactly threshold*/
@@ -198,6 +201,7 @@ int main(void)
             lcd_print_xy(1,4,int2str(adcValue));  
             lcd_print_xy(1,10,int2str(threshold) );
             
+            lcd_print_xy(0,10,int2str(flag));
             
             /*If propellor is not rotating*/
             if( (max-min)<10)
